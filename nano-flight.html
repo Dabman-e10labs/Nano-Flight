@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Nano Flight</title>
+<link rel="preconnect" href="https://fonts.cdnfonts.com">
+<link href="https://fonts.cdnfonts.com/css/amsterdam-graffiti" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#181040; touch-action:none;
+    -webkit-user-select:none; user-select:none; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif; }
+  #wrap { position:fixed; inset:0; }
+  canvas { display:block; width:100%; height:100%; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, DPR = 1, S = 1; // S = scale factor relative to a 640px-tall design
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    S = H / 640;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Amsterdam Graffiti webfont, with handstyle fallbacks if it can't load
+  const GF = `'Amsterdam Graffiti','Comic Sans MS','Marker Felt','Chalkboard SE',Helvetica,sans-serif`;
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('20px "Amsterdam Graffiti"').catch(() => {});
+  }
+
+  // the real e10 Labs logo (background removed, embedded — no network needed)
+  const LOGO = new Image();
+  LOGO.src = 'data:image/png;base64,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';
+
+  // ---------- persistent best score (works in Claude preview AND on any website) ----------
+  let best = 0;
+  (async () => {
+    try {
+      const r = await window.storage.get('nano-flight-best');
+      if (r && r.value) best = parseInt(r.value, 10) || 0;
+    } catch (e) {
+      try { best = parseInt(localStorage.getItem('nano-flight-best'), 10) || 0; } catch (e2) {}
+    }
+  })();
+  function saveBest() {
+    try { window.storage.set('nano-flight-best', String(best)); } catch (e) {}
+    try { localStorage.setItem('nano-flight-best', String(best)); } catch (e) {}
+  }
+
+  // ---------- game state ----------
+  const STATE = { MENU:0, PLAY:1, DEAD:2 };
+  let state = STATE.MENU;
+  let score = 0, newBest = false;
+  let t = 0, lastTime = 0;
+  let deadTimer = 0, flash = 0;
+
+  // player (the Nano Joint, horizontal capsule)
+  const joint = { x:0, y:0, vy:0, rot:0, len:118, thick:20 };
+
+  // obstacles
+  let pipes = [];   // { x, gapY, gapH, color, scored, wobble }
+  let particles = [];
+
+  // "Roku City"-style dusk parallax background (California landmarks)
+  let P = 0;                       // tile period of each layer
+  let layerFar, layerMid, layerNear;
+  let bgOff = { far:0, mid:0, near:0 };
+  let stars = [];
+  // the e10 Labs delivery van cruising the road (flipped: faces right)
+  let van = { x: window.innerWidth * 0.65, wheelA: 0 };
+
+  // Odin colorways sampled from the product shot
+  const ODIN_COLORS = [
+    { name:'lilac', top:'#cfb6dd', mid:'#b493c9', low:'#9a78b3', base:'#8a6aa5', btn:'#a98fc0' },
+    { name:'onyx',  top:'#4a4a52', mid:'#28282e', low:'#16161b', base:'#0e0e12', btn:'#3a3a42' },
+    { name:'steel', top:'#7fa3b8', mid:'#54798f', low:'#3c5f76', base:'#33536a', btn:'#6b93a9' },
+  ];
+
+  // ---------- tuning (the "hooked but fair" knobs) — difficulty +15% ----------
+  function speed()   { return (190 + Math.min(score, 45) * 3.7) * S; }            // px/s, ramps gently, caps
+  function gapH()    { return Math.max(0.228 * H, 0.322 * H - score * 0.0030 * H); } // shrinks slowly
+  function spacing() { return Math.max(248 * S, Math.min(0.54 * W, 392 * S)); }   // horizontal distance between pipes
+  const GRAV = 1650;        // * S applied later
+  const FLAP = -460;        // * S
+
+  // ---------- sound (synthesized haptic-style buzzes, no audio files) ----------
+  let actx = null;
+  function audio() {
+    if (!actx) {
+      try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+    }
+    if (actx && actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  // motor-like buzz: low sawtooth carrier, square-wave tremor, lowpassed
+  function buzz(dur, f0, f1, vol, tremor) {
+    const a = audio(); if (!a) return;
+    const t0 = a.currentTime;
+    const osc = a.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f0, t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+
+    const carrier = a.createGain();
+    carrier.gain.value = 0.55;
+    const am = a.createOscillator();
+    am.type = 'square'; am.frequency.value = tremor;
+    const amGain = a.createGain(); amGain.gain.value = 0.45;
+    am.connect(amGain); amGain.connect(carrier.gain);
+
+    const lp = a.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 480; lp.Q.value = 0.8;
+
+    const out = a.createGain();
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+    out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    osc.connect(carrier); carrier.connect(lp); lp.connect(out); out.connect(a.destination);
+    osc.start(t0); am.start(t0);
+    osc.stop(t0 + dur + 0.05); am.stop(t0 + dur + 0.05);
+  }
+  function sndTap()      { buzz(0.07, 130, 105, 0.22, 60); }      // quick vibration blip
+  function sndPowerOff() { buzz(0.9, 150, 38, 0.34, 34); }        // long winding-down vibration
+
+  // ---------- input ----------
+  function tap(e) {
+    if (e) e.preventDefault();
+    if (state === STATE.MENU) { startGame(); flap(); }
+    else if (state === STATE.PLAY) { flap(); }
+    else if (state === STATE.DEAD && deadTimer > 0.55) { sndTap(); reset(); state = STATE.MENU; }
+  }
+  function flap() {
+    joint.vy = FLAP * S;
+    sndTap();
+    // little puff of smoke from the lit end
+    for (let i = 0; i < 4; i++) {
+      particles.push({
+        x: joint.x - joint.len * S * 0.45, y: joint.y + (Math.random()-0.5)*8*S,
+        vx: -(40 + Math.random()*50) * S, vy: (Math.random()-0.6)*40*S,
+        r: (3 + Math.random()*4) * S, a: 0.5, da: -0.9
+      });
+    }
+  }
+  window.addEventListener('pointerdown', tap, { passive:false });
+  window.addEventListener('keydown', e => { if (e.code === 'Space' || e.code === 'ArrowUp') tap(e); });
+
+  // ---------- setup ----------
+  function reset() {
+    score = 0; newBest = false;
+    joint.x = W * 0.3; joint.y = H * 0.45; joint.vy = 0; joint.rot = 0;
+    pipes = []; particles = []; deadTimer = 0; flash = 0;
+  }
+  function startGame() {
+    state = STATE.PLAY;
+    spawnPipe(W + 80 * S);
+  }
+  function spawnPipe(x) {
+    const g = gapH();
+    const margin = 0.12 * H;
+    const gapY = margin + g/2 + Math.random() * (H - 2*margin - g - floorH());
+    pipes.push({ x, gapY, gapH:g, color: ODIN_COLORS[(Math.random()*3)|0], scored:false, wobble: Math.random()*6.28 });
+  }
+  function floorH() { return 56 * S; }
+
+  // deterministic pseudo-random for stable window lights etc.
+  function hsh(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+
+  function buildBackground() {
+    P = Math.max(W * 1.7, 1500 * S);
+    const fy = H - floorH();
+
+    stars = [];
+    for (let i = 0; i < 70; i++) {
+      stars.push({ x: hsh(i+1)*W, y: hsh(i+101)*H*0.5, r:(0.6+hsh(i+201)*1.3)*S, ph: hsh(i+301)*6.28 });
+    }
+
+    function mkLayer() {
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(P * DPR); cv.height = Math.ceil(H * DPR);
+      const c = cv.getContext('2d');
+      c.setTransform(DPR, 0, 0, DPR, 0, 0);
+      return [cv, c];
+    }
+
+    // ---- FAR LAYER: SF + LA skyline silhouettes with lit windows ----
+    {
+      const [cv, c] = mkLayer(); layerFar = cv;
+      const col = '#2e2156', win = 'rgba(255,214,140,0.85)';
+      function block(x, w, h) {
+        c.fillStyle = col;
+        c.fillRect(x, fy - h, w, h);
+        const cols = Math.max(1, (w / (10*S)) | 0), rows = Math.min(16, (h / (14*S)) | 0);
+        c.fillStyle = win;
+        for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) {
+          if (hsh(x*0.13 + r*17 + q*7) > 0.74)
+            c.fillRect(x + 4*S + q*(w-8*S)/cols, fy - h + 6*S + r*13*S, 3*S, 4.5*S);
+        }
+      }
+      // Transamerica Pyramid
+      function pyramid(x) {
+        const h = 0.34*H, w = 58*S;
+        c.fillStyle = col;
+        c.beginPath();
+        c.moveTo(x, fy); c.lineTo(x + w/2 - 2*S, fy - h); c.lineTo(x + w/2 + 2*S, fy - h); c.lineTo(x + w, fy);
+        c.closePath(); c.fill();
+        c.fillRect(x + w/2 - 1.5*S, fy - h - 22*S, 3*S, 22*S);            // spire
+        c.fillRect(x + w*0.72, fy - h*0.62, 9*S, h*0.62);                 // east wing
+        c.fillStyle = win;
+        for (let r = 0; r < 12; r++) {
+          const yy = fy - 12*S - r*(h-30*S)/12, half = (w/2) * (1 - r/13);
+          for (let q = -1; q <= 1; q++) if (hsh(x + r*31 + q*11) > 0.6)
+            c.fillRect(x + w/2 + q*half*0.55 - 1.5*S, yy, 3*S, 4*S);
+        }
+      }
+      // Capitol Records tower
+      function capitol(x) {
+        const h = 0.18*H, w = 40*S, discs = 9;
+        c.fillStyle = col;
+        for (let i = 0; i < discs; i++) {
+          const yy = fy - (i+1) * h/discs;
+          roundIn(c, x, yy, w, h/discs - 1.2*S, 4*S);
+        }
+        c.fillRect(x + w/2 - 1.2*S, fy - h - 30*S, 2.4*S, 30*S);          // needle
+        c.fillStyle = 'rgba(255,90,90,0.95)';
+        c.beginPath(); c.arc(x + w/2, fy - h - 30*S, 2.2*S, 0, 6.29); c.fill(); // beacon
+      }
+      // US Bank Tower (rounded crown)
+      function usbank(x) {
+        const h = 0.4*H, w = 46*S;
+        c.fillStyle = col;
+        c.fillRect(x, fy - h + w/2, w, h - w/2);
+        c.beginPath(); c.arc(x + w/2, fy - h + w/2, w/2, Math.PI, 0); c.fill();
+        c.fillStyle = win;
+        for (let r = 0; r < 15; r++) for (let q = 0; q < 4; q++)
+          if (hsh(x*0.7 + r*13 + q*5) > 0.7)
+            c.fillRect(x + 5*S + q*(w-10*S)/4, fy - h + w/2 + 8*S + r*13*S, 3*S, 4.5*S);
+      }
+      // Salesforce Tower (tapered top)
+      function salesforce(x) {
+        const h = 0.42*H, w = 50*S;
+        c.fillStyle = col;
+        c.beginPath();
+        c.moveTo(x, fy);
+        c.lineTo(x + 4*S, fy - h*0.82);
+        c.quadraticCurveTo(x + w/2, fy - h - 14*S, x + w - 4*S, fy - h*0.82);
+        c.lineTo(x + w, fy);
+        c.closePath(); c.fill();
+        c.fillStyle = win;
+        for (let r = 0; r < 14; r++) for (let q = 0; q < 4; q++)
+          if (hsh(x*0.9 + r*19 + q*3) > 0.72)
+            c.fillRect(x + 8*S + q*(w-16*S)/4, fy - 14*S - r*(h-40*S)/14, 3*S, 4.5*S);
+      }
+      function roundIn(c2, x, y, w, h, r) { 
+        c2.beginPath();
+        c2.moveTo(x+r, y);
+        c2.arcTo(x+w, y, x+w, y+h, r); c2.arcTo(x+w, y+h, x, y+h, r);
+        c2.arcTo(x, y+h, x, y, r); c2.arcTo(x, y, x+w, y, r);
+        c2.closePath(); c2.fill();
+      }
+      // lay out the strip: landmarks pinned, filler blocks between
+      pyramid(P*0.06); salesforce(P*0.16); capitol(P*0.47); usbank(P*0.62); pyramid(P*0.88);
+      const fillers = [0.0,0.11,0.225,0.28,0.34,0.40,0.53,0.57,0.70,0.76,0.82,0.94];
+      fillers.forEach((f,i) => block(P*f, (26+hsh(i+7)*34)*S, (0.10+hsh(i+57)*0.20)*H));
+    }
+
+    // ---- MID LAYER: Golden Gate, Hollywood sign, Santa Monica wheel ----
+    {
+      const [cv, c] = mkLayer(); layerMid = cv;
+      const sil = '#231a48';
+      // Golden Gate Bridge segment
+      function goldenGate(x) {
+        const span = 0.34*P, towerH = 0.30*H, deckY = fy - 0.10*H, tw = 10*S;
+        const t1 = x + span*0.25, t2 = x + span*0.75;
+        c.strokeStyle = '#74283b'; c.fillStyle = '#74283b';
+        // towers (two crossbeam frames)
+        [t1, t2].forEach(tx => {
+          c.fillRect(tx - tw/2, fy - towerH, tw*0.32, towerH);
+          c.fillRect(tx + tw/2 - tw*0.32, fy - towerH, tw*0.32, towerH);
+          c.fillRect(tx - tw/2, fy - towerH + 8*S, tw, 4*S);
+          c.fillRect(tx - tw/2, deckY - 26*S, tw, 4*S);
+        });
+        // deck
+        c.fillRect(x, deckY, span, 5*S);
+        // main cables (catenaries)
+        c.lineWidth = 2*S;
+        c.beginPath();
+        c.moveTo(x, deckY - 4*S);
+        c.quadraticCurveTo((x+t1)/2, deckY - 6*S, t1, fy - towerH + 4*S);
+        c.quadraticCurveTo((t1+t2)/2, deckY + 2*S, t2, fy - towerH + 4*S);
+        c.quadraticCurveTo((t2+x+span)/2, deckY - 6*S, x + span, deckY - 4*S);
+        c.stroke();
+        // suspenders
+        c.lineWidth = 1;
+        for (let i = 1; i < 14; i++) {
+          const sx = t1 + (t2-t1)*i/14;
+          const sag = fy - towerH + 4*S + Math.sin(Math.PI*i/14) * ((deckY+2*S) - (fy-towerH+4*S));
+          c.beginPath(); c.moveTo(sx, sag); c.lineTo(sx, deckY); c.stroke();
+        }
+        // deck lights
+        c.fillStyle = 'rgba(255,220,150,0.9)';
+        for (let i = 0; i <= 10; i++) c.fillRect(x + span*i/10 - 1*S, deckY - 3*S, 2*S, 2*S);
+      }
+      // Hollywood sign on a hill
+      function hollywood(x) {
+        const hw = 0.22*P, hh = 0.13*H;
+        c.fillStyle = sil;
+        c.beginPath();
+        c.moveTo(x, fy);
+        c.quadraticCurveTo(x + hw*0.5, fy - hh*1.6, x + hw, fy);
+        c.closePath(); c.fill();
+        c.fillStyle = '#efeae0';
+        c.font = `700 ${10*S}px Helvetica, Arial, sans-serif`;
+        c.textAlign = 'center';
+        c.fillText('H O L L Y W O O D', x + hw*0.5, fy - hh*0.78);
+      }
+      // Santa Monica Pacific Wheel
+      function wheel(x) {
+        const r = 0.085*H, cx2 = x, cy2 = fy - r - 14*S;
+        c.strokeStyle = '#4a3a7a'; c.lineWidth = 2*S;
+        c.beginPath(); c.arc(cx2, cy2, r, 0, 6.29); c.stroke();
+        for (let i = 0; i < 10; i++) {
+          const a = i/10*6.28;
+          c.beginPath(); c.moveTo(cx2, cy2); c.lineTo(cx2 + Math.cos(a)*r, cy2 + Math.sin(a)*r); c.stroke();
+        }
+        // legs
+        c.beginPath(); c.moveTo(cx2 - r*0.7, fy); c.lineTo(cx2, cy2); c.lineTo(cx2 + r*0.7, fy); c.stroke();
+        // rim lights
+        for (let i = 0; i < 14; i++) {
+          const a = i/14*6.28;
+          c.fillStyle = ['#ff6f91','#ffd166','#6fd3ff'][i % 3];
+          c.beginPath(); c.arc(cx2 + Math.cos(a)*r, cy2 + Math.sin(a)*r, 2*S, 0, 6.29); c.fill();
+        }
+      }
+      goldenGate(P*0.02); hollywood(P*0.48); wheel(P*0.78);
+    }
+
+    // ---- NEAR LAYER: palm tree silhouettes ----
+    {
+      const [cv, c] = mkLayer(); layerNear = cv;
+      c.fillStyle = '#140e2e'; c.strokeStyle = '#140e2e';
+      function palm(x, h) {
+        const top = fy - h;
+        c.lineWidth = 4.5*S;
+        c.beginPath();
+        c.moveTo(x, fy);
+        c.quadraticCurveTo(x + 8*S, fy - h*0.55, x + 3*S, top);
+        c.stroke();
+        // fronds
+        for (let i = 0; i < 7; i++) {
+          const a = -2.6 + i * (2.4/6);
+          c.lineWidth = 2.5*S;
+          c.beginPath();
+          c.moveTo(x + 3*S, top);
+          c.quadraticCurveTo(x + 3*S + Math.cos(a)*16*S, top + Math.sin(a)*16*S - 8*S,
+                             x + 3*S + Math.cos(a)*30*S, top + Math.sin(a)*30*S + 4*S);
+          c.stroke();
+        }
+        c.beginPath(); c.arc(x + 3*S, top, 4*S, 0, 6.29); c.fill();
+      }
+      const n = Math.round(P / (300*S));
+      for (let i = 0; i < n; i++) palm(P*i/n + hsh(i+11)*60*S, (0.10 + hsh(i+41)*0.07)*H);
+    }
+  }
+
+  buildBackground();
+  window.addEventListener('resize', buildBackground);
+  reset();
+
+  // ---------- update ----------
+  function update(dt) {
+    t += dt;
+    // parallax drift — slow on menus, tied to game speed while playing
+    const bv = (state === STATE.PLAY) ? speed() : 28 * S;
+    bgOff.far  = (bgOff.far  + bv * 0.14 * dt) % P;
+    bgOff.mid  = (bgOff.mid  + bv * 0.30 * dt) % P;
+    bgOff.near = (bgOff.near + bv * 0.55 * dt) % P;
+
+    // van drives ~80% of world speed, so it drifts back slowly as you fly past it
+    van.x -= bv * 0.2 * dt;
+    van.wheelA += (bv * 0.8 / (13 * S)) * dt;     // wheel spin from its own driving speed
+    if (van.x < -220 * S) van.x = W + (250 + Math.random() * 500) * S;
+
+    particles.forEach(p => { p.x += p.vx*dt; p.y += p.vy*dt; p.a += p.da*dt; p.r += 8*S*dt; });
+    particles = particles.filter(p => p.a > 0);
+
+    if (state === STATE.MENU) {
+      joint.y = H * 0.45 + Math.sin(t * 2.4) * 12 * S;
+      joint.rot = Math.sin(t * 2.4) * 0.06;
+      return;
+    }
+
+    if (state === STATE.PLAY) {
+      joint.vy += GRAV * S * dt;
+      joint.y += joint.vy * dt;
+      joint.rot = Math.max(-0.45, Math.min(0.9, joint.vy / (560 * S)));
+
+      const v = speed();
+      pipes.forEach(p => p.x -= v * dt);
+      if (pipes.length === 0 || pipes[pipes.length-1].x < W - spacing()) spawnPipe(W + 60 * S);
+      pipes = pipes.filter(p => p.x > -120 * S);
+
+      // scoring
+      pipes.forEach(p => {
+        if (!p.scored && p.x + odinW()/2 < joint.x) {
+          p.scored = true; score++;
+          if (score > best) { best = score; newBest = true; saveBest(); }
+        }
+      });
+
+      // collisions — forgiving hitbox (85% of visual size)
+      const hw = joint.len * S * 0.5 * 0.82, hh = joint.thick * S * 0.5 * 0.8;
+      if (joint.y + hh > H - floorH() || joint.y - hh < 0) return die();
+      const ow = odinW();
+      for (const p of pipes) {
+        const wob = Math.sin(t*1.7 + p.wobble) * 3 * S; // devices sway very slightly
+        if (Math.abs(joint.x - p.x) < hw + ow/2) {
+          if (joint.y - hh < p.gapY - p.gapH/2 + wob || joint.y + hh > p.gapY + p.gapH/2 + wob) return die();
+        }
+      }
+    }
+
+    if (state === STATE.DEAD) {
+      deadTimer += dt;
+      flash = Math.max(0, flash - dt*3);
+      // tumble to the floor
+      if (joint.y < H - floorH() - joint.thick*S*0.5) {
+        joint.vy += GRAV * S * dt;
+        joint.y += joint.vy * dt;
+        joint.rot += 4 * dt;
+      }
+    }
+  }
+  function die() {
+    state = STATE.DEAD; flash = 1; deadTimer = 0;
+    sndPowerOff();
+    joint.vy = Math.min(joint.vy, -200*S);
+    if (navigator.vibrate) try { navigator.vibrate([80, 40, 200]); } catch(e){}
+  }
+
+  function odinW() { return 68 * S; }
+
+  // ---------- drawing ----------
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+  // rectangle with rounding only on the gap-facing end (the visible cap end)
+  function capRect(x, y, w, h, r, roundBottom) {
+    ctx.beginPath();
+    if (roundBottom) {
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      ctx.lineTo(x + r, y + h);
+      ctx.arcTo(x, y + h, x, y + h - r, r);
+      ctx.lineTo(x, y);
+    } else {
+      ctx.moveTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.lineTo(x + w - r, y);
+      ctx.arcTo(x + w, y, x + w, y + r, r);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+    }
+    ctx.closePath();
+  }
+
+  function drawBG() {
+    // dusk sky
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#181040');
+    g.addColorStop(0.42, '#3b2a6e');
+    g.addColorStop(0.72, '#8a4f8f');
+    g.addColorStop(0.95, '#e2876a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // stars (twinkle)
+    stars.forEach(s => {
+      const tw = 0.45 + 0.55 * Math.abs(Math.sin(t*1.2 + s.ph));
+      ctx.fillStyle = `rgba(255,250,235,${tw})`;
+      ctx.fillRect(s.x, s.y, s.r, s.r);
+    });
+
+    // moon
+    const mx = W*0.82, my = H*0.14, mr = 26*S;
+    const mg = ctx.createRadialGradient(mx, my, mr*0.2, mx, my, mr*2.2);
+    mg.addColorStop(0, 'rgba(255,245,220,0.9)');
+    mg.addColorStop(0.35, 'rgba(255,235,200,0.25)');
+    mg.addColorStop(1, 'rgba(255,235,200,0)');
+    ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(mx, my, mr*2.2, 0, 6.29); ctx.fill();
+    ctx.fillStyle = '#fdf3da';
+    ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.29); ctx.fill();
+    ctx.fillStyle = 'rgba(210,195,160,0.5)';
+    ctx.beginPath(); ctx.arc(mx - 8*S, my - 4*S, 4.5*S, 0, 6.29); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx + 7*S, my + 8*S, 3*S, 0, 6.29); ctx.fill();
+
+    // parallax layers, each tiled twice
+    function tile(layer, off) {
+      ctx.drawImage(layer, -off, 0, P, H);
+      ctx.drawImage(layer, -off + P, 0, P, H);
+    }
+    tile(layerFar,  bgOff.far);
+    tile(layerMid,  bgOff.mid);
+    tile(layerNear, bgOff.near);
+
+    // pavement floor
+    const fy = H - floorH();
+    const fg = ctx.createLinearGradient(0, fy, 0, H);
+    fg.addColorStop(0, '#241c46');
+    fg.addColorStop(1, '#130e28');
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, fy, W, floorH());
+    ctx.fillStyle = 'rgba(255,180,120,0.18)';
+    ctx.fillRect(0, fy, W, 2*S);
+    // lane dashes scroll with the near layer
+    ctx.fillStyle = 'rgba(255,225,160,0.22)';
+    const dashW = 34*S, gap = 30*S, offD = bgOff.near % (dashW+gap);
+    for (let x = -offD; x < W; x += dashW + gap) ctx.fillRect(x, fy + floorH()*0.55, dashW, 3*S);
+  }
+
+  function drawOdin(cx, yTop, yBottom, c, fromTop) {
+    // device body spanning yTop..yBottom; the gap-facing end is the flat cap
+    const w = odinW();
+    const x = cx - w/2;
+    const h = yBottom - yTop;
+    const capR = w * 0.13;                 // small corner radius, like the real device
+    const roundBottom = fromTop;           // cap faces the gap
+
+    ctx.save();
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    capRect(x + 5*S, yTop + 5*S, w, h, capR, roundBottom);
+    ctx.fill();
+
+    // metallic body gradient (horizontal, cylindrical sheen)
+    const g = ctx.createLinearGradient(x, 0, x + w, 0);
+    g.addColorStop(0, c.low);
+    g.addColorStop(0.18, c.mid);
+    g.addColorStop(0.42, c.top);
+    g.addColorStop(0.72, c.mid);
+    g.addColorStop(1, c.low);
+    ctx.fillStyle = g;
+    capRect(x, yTop, w, h, capR, roundBottom);
+    ctx.fill();
+
+    ctx.save();
+    capRect(x, yTop, w, h, capR, roundBottom); ctx.clip();
+
+    // cap lid: a slightly raised disc at the gap end with a seam, like the photo
+    const lidH = 10 * S;
+    const lidY = fromTop ? yBottom - lidH : yTop;
+    const lg = ctx.createLinearGradient(x, 0, x + w, 0);
+    lg.addColorStop(0, c.mid); lg.addColorStop(0.45, c.top); lg.addColorStop(1, c.mid);
+    ctx.fillStyle = lg;
+    ctx.fillRect(x + 1.5*S, lidY, w - 3*S, lidH);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(x, fromTop ? yBottom - lidH - 1.5*S : yTop + lidH, w, 1.5*S);
+
+    // darker glossy base section at the far end (two-tone like the product)
+    const baseH = Math.min(0.2 * h, 64 * S);
+    const bg = ctx.createLinearGradient(x, 0, x + w, 0);
+    bg.addColorStop(0, c.base); bg.addColorStop(0.42, c.mid); bg.addColorStop(1, c.base);
+    ctx.fillStyle = bg;
+    if (fromTop) ctx.fillRect(x, yTop, w, baseH);          // far end is the screen edge
+    else ctx.fillRect(x, yBottom - baseH, w, baseH);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(x, fromTop ? yTop + baseH : yBottom - baseH - 1.5*S, w, 1.5*S);
+
+    // oval power button + 3 indicator dashes, in the upper-middle area near the cap
+    const btnY = fromTop ? yBottom - lidH - 46*S : yTop + lidH + 46*S;
+    if (h > 115*S) {
+      const btng = ctx.createLinearGradient(cx - 8*S, 0, cx + 8*S, 0);
+      btng.addColorStop(0, c.base); btng.addColorStop(0.5, c.btn); btng.addColorStop(1, c.base);
+      ctx.fillStyle = btng;
+      roundRect(cx - 8*S, btnY - 13*S, 16*S, 26*S, 8*S);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      // 3 vertical bars stacked in a single column, centered on device, below button (rightside up)
+      const lW = 5*S, lH = 13*S, lGap = 6*S;
+      const totalH = 3*lH + 2*lGap;
+      const dotsY = fromTop ? btnY - 16*S - totalH : btnY + 18*S;
+      for (let i = 0; i < 3; i++) {
+        roundRect(cx - lW/2, dotsY + i*(lH + lGap), lW, lH, 1.5*S);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // straight edge highlights down both sides
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1;
+    capRect(x + 1, yTop + 1, w - 2, h - 2, capR, roundBottom);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // the e10 Labs van — BrightDrop Zevo profile, flipped to face right (direction of travel)
+  function drawVan() {
+    const vw = 178*S, vh = 68*S;                 // tall, boxy proportions like the photo
+    const fy = H - floorH();
+    const groundY = fy + floorH()*0.62;          // wheels ride on the road
+    const x = van.x, top = groundY - vh;
+    const wheelR = 12.5*S;
+    if (x > W + vw || x + vw < -vw) return;
+
+    ctx.save();
+
+    // ---- body silhouette (front on the RIGHT) ----
+    const bodyG = ctx.createLinearGradient(0, top, 0, groundY);
+    bodyG.addColorStop(0, '#28282d');
+    bodyG.addColorStop(0.45, '#1a1a1e');
+    bodyG.addColorStop(1, '#101013');
+    ctx.fillStyle = bodyG;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.045*vw, groundY - 5*S);                       // rear rocker
+    ctx.lineTo(x + 0.03*vw, top + 0.24*vh);                        // tall, nearly vertical rear
+    ctx.quadraticCurveTo(x + 0.03*vw, top + 2*S, x + 0.10*vw, top + 1*S);  // squared rear roof corner
+    ctx.lineTo(x + 0.58*vw, top);                                  // long flat roofline
+    ctx.quadraticCurveTo(x + 0.65*vw, top, x + 0.70*vw, top + 3*S);// roof-to-windshield corner
+    ctx.lineTo(x + 0.875*vw, top + 0.42*vh);                       // steep raked windshield
+    ctx.quadraticCurveTo(x + 0.93*vw, top + 0.50*vh, x + 0.965*vw, top + 0.52*vh); // stubby hood
+    ctx.quadraticCurveTo(x + 0.995*vw, top + 0.55*vh, x + 0.995*vw, top + 0.66*vh); // rounded nose
+    ctx.lineTo(x + 0.995*vw, groundY - 9*S);                       // flat front face
+    ctx.quadraticCurveTo(x + 0.995*vw, groundY - 5*S, x + 0.96*vw, groundY - 5*S); // bumper corner
+    ctx.lineTo(x + 0.07*vw, groundY - 5*S);
+    ctx.quadraticCurveTo(x + 0.045*vw, groundY - 5*S, x + 0.045*vw, groundY - 9*S);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // clip everything else to the body
+    ctx.save();
+    ctx.clip();
+
+    // darker lower cladding + bumper band, like the matte gray rocker in the photo
+    ctx.fillStyle = '#0d0d10';
+    ctx.fillRect(x, groundY - 13*S, vw, 13*S);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(x, groundY - 13*S, vw, 1*S);
+
+    // windshield: steep sliver following the rake, dusk-tinted
+    const wsG = ctx.createLinearGradient(x + 0.70*vw, top, x + 0.90*vw, top + 0.5*vh);
+    wsG.addColorStop(0, '#4a4170'); wsG.addColorStop(1, '#2c2748');
+    ctx.fillStyle = wsG;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.715*vw, top + 5*S);
+    ctx.lineTo(x + 0.865*vw, top + 0.42*vh);
+    ctx.lineTo(x + 0.835*vw, top + 0.46*vh);
+    ctx.lineTo(x + 0.695*vw, top + 0.14*vh);
+    ctx.closePath();
+    ctx.fill();
+
+    // front door window with the thin divider frames from the photo
+    ctx.fillStyle = '#39325c';
+    ctx.beginPath();
+    ctx.moveTo(x + 0.545*vw, top + 5.5*S);
+    ctx.lineTo(x + 0.69*vw, top + 5.5*S);
+    ctx.lineTo(x + 0.815*vw, top + 0.45*vh);
+    ctx.lineTo(x + 0.545*vw, top + 0.45*vh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,10,14,0.9)';
+    ctx.lineWidth = 1.4*S;
+    [0.615, 0.685].forEach(f => {
+      ctx.beginPath();
+      ctx.moveTo(x + f*vw, top + 5.5*S);
+      ctx.lineTo(x + f*vw, top + 0.45*vh);
+      ctx.stroke();
+    });
+    // glass highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.beginPath();
+    ctx.moveTo(x + 0.56*vw, top + 6*S); ctx.lineTo(x + 0.60*vw, top + 6*S);
+    ctx.lineTo(x + 0.575*vw, top + 0.43*vh); ctx.lineTo(x + 0.555*vw, top + 0.43*vh);
+    ctx.closePath(); ctx.fill();
+
+    // door seams: front door edge + sliding cargo door
+    ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+    ctx.lineWidth = 1;
+    [0.535, 0.345].forEach(f => {
+      ctx.beginPath();
+      ctx.moveTo(x + f*vw, top + 4*S);
+      ctx.lineTo(x + f*vw, groundY - 6*S);
+      ctx.stroke();
+    });
+
+    // "#E10L420" on the front fender
+    ctx.fillStyle = '#e9e7e2';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.font = `${4.8*S}px ${GF}`;
+    ctx.fillText('#E10L420', x + 0.875*vw, top + 0.62*vh);
+
+    // ---- the e10 LABS livery on the cargo side ----
+    const lgX = x + 0.085*vw, lgY = top + 0.30*vh;
+    ctx.fillStyle = '#f3f1ec';
+    // the real logo, stamped on the wrap
+    if (LOGO.complete && LOGO.naturalWidth > 0) {
+      const lw = 0.42*vw, lh = lw * (LOGO.naturalHeight / LOGO.naturalWidth);
+      ctx.drawImage(LOGO, lgX, lgY + 2*S - lh, lw, lh);
+    }
+    // double stripes spanning the cargo side, stopping short of the door window
+    const stX = x + 0.075*vw, stW = 0.435*vw;
+    ctx.fillRect(stX, lgY + 7*S, stW, 2.6*S);
+    ctx.fillRect(stX, lgY + 12.5*S, stW, 2.6*S);
+    // "GET BAKED, NOT BURNT" — handstyle tagline under the right end of the stripes
+    ctx.save();
+    ctx.translate(stX + stW, lgY + 21*S);
+    ctx.rotate(-0.015);
+    ctx.textAlign = 'right';
+    ctx.font = `${6.4*S}px ${GF}`;
+    ctx.fillText('GET BAKED, NOT BURNT', 0, 0);
+    ctx.restore();
+
+    ctx.restore(); // end body clip
+
+    // side mirror at the windshield base, sticking out front
+    ctx.fillStyle = '#0e0e11';
+    ctx.fillRect(x + 0.86*vw, top + 0.30*vh, 7*S, 2*S);
+    roundRect(x + 0.885*vw, top + 0.25*vh, 5*S, 8*S, 1.5*S);
+    ctx.fill();
+
+    // wheel arches cut into the body, then white steelies
+    function arch(cx2) {
+      ctx.fillStyle = '#0a0a0d';
+      ctx.beginPath();
+      ctx.arc(cx2, groundY - 2*S, wheelR + 4.5*S, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+    }
+    function wheel(cx2) {
+      const cy2 = groundY - 2*S;
+      ctx.fillStyle = '#0b0b0d';
+      ctx.beginPath(); ctx.arc(cx2, cy2, wheelR, 0, 6.29); ctx.fill();
+      // white steel rim with the 8 vent holes from the photo
+      ctx.fillStyle = '#e9e7e2';
+      ctx.beginPath(); ctx.arc(cx2, cy2, wheelR*0.66, 0, 6.29); ctx.fill();
+      ctx.fillStyle = '#3a3a3e';
+      for (let i = 0; i < 8; i++) {
+        const a = van.wheelA + i/8*6.28;
+        ctx.beginPath();
+        ctx.arc(cx2 + Math.cos(a)*wheelR*0.44, cy2 + Math.sin(a)*wheelR*0.44, 1.8*S, 0, 6.29);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#26262a';
+      ctx.beginPath(); ctx.arc(cx2, cy2, wheelR*0.2, 0, 6.29); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx2, cy2, wheelR*0.66, 0, 6.29); ctx.stroke();
+    }
+    const w1 = x + 0.185*vw, w2 = x + 0.815*vw;
+    arch(w1); arch(w2);
+    wheel(w1); wheel(w2);
+
+    // slim vertical headlight on the flat front face + warm beam
+    ctx.fillStyle = '#ffe9b8';
+    roundRect(x + 0.965*vw, top + 0.56*vh, 3*S, 11*S, 1.5*S);
+    ctx.fill();
+    const beam = ctx.createLinearGradient(x + 0.995*vw, 0, x + 0.995*vw + 70*S, 0);
+    beam.addColorStop(0, 'rgba(255,230,170,0.30)');
+    beam.addColorStop(1, 'rgba(255,230,170,0)');
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(x + 0.995*vw, top + 0.56*vh);
+    ctx.lineTo(x + 0.995*vw + 70*S, top + 0.46*vh);
+    ctx.lineTo(x + 0.995*vw + 70*S, top + 0.86*vh);
+    ctx.lineTo(x + 0.995*vw, top + 0.72*vh);
+    ctx.closePath();
+    ctx.fill();
+    // vertical taillight at the rear edge
+    ctx.fillStyle = '#ff5a5a';
+    roundRect(x + 0.032*vw, top + 0.30*vh, 3*S, 11*S, 1.5*S);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawJoint() {
+    const L = joint.len * S, T = joint.thick * S;
+    const r = 2.5 * S; // barely-rounded corners, like the real tube
+    ctx.save();
+    ctx.translate(joint.x, joint.y);
+    ctx.rotate(joint.rot);
+
+    // shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.10)';
+    roundRect(-L/2 + 3*S, -T/2 + 4*S, L, T, r);
+    ctx.fill();
+
+    // white paper tube body, flat ends
+    const g = ctx.createLinearGradient(0, -T/2, 0, T/2);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.45, '#f6f5f1');
+    g.addColorStop(1, '#dcdbd5');
+    ctx.fillStyle = g;
+    roundRect(-L/2, -T/2, L, T, r);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)';
+    ctx.lineWidth = 1;
+    roundRect(-L/2, -T/2, L, T, r);
+    ctx.stroke();
+
+    ctx.save();
+    roundRect(-L/2, -T/2, L, T, r); ctx.clip();
+
+    // two thin silver foil bands, ~30% in from the back end (as in the photo)
+    const sg = ctx.createLinearGradient(0, -T/2, 0, T/2);
+    sg.addColorStop(0, '#eceaea'); sg.addColorStop(0.5, '#9aa0a6'); sg.addColorStop(1, '#cfd2d5');
+    ctx.fillStyle = sg;
+    ctx.fillRect(-L/2 + L*0.28, -T/2, 3*S, T);
+    ctx.fillRect(-L/2 + L*0.345, -T/2, 3*S, T);
+
+    // NANO / JOINT wordmark, two stacked letterspaced lines
+    ctx.fillStyle = '#2b2b2b';
+    ctx.font = `600 ${5.6*S}px Helvetica, Arial, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const wmX = -L/2 + L*0.52;
+    ctx.fillText('N A N O', wmX, -T*0.21);
+    ctx.fillText('J O I N T', wmX, T*0.24);
+
+    // dotted arrow near the front end, pointing forward
+    ctx.fillStyle = 'rgba(120,120,120,0.7)';
+    const ax = -L/2 + L*0.78;
+    for (let i = 0; i < 6; i++) ctx.fillRect(ax + i*3.2*S, -0.9*S, 1.8*S, 1.8*S);
+    ctx.beginPath();
+    ctx.moveTo(ax + 6*3.2*S + 4*S, 0);
+    ctx.lineTo(ax + 6*3.2*S, -3*S);
+    ctx.lineTo(ax + 6*3.2*S, 3*S);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    particles.forEach(p => {
+      ctx.fillStyle = `rgba(225,220,240,${Math.max(0, p.a)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.29); ctx.fill();
+    });
+  }
+
+  // heat-map gradient (the Odin box rainbow) — used for celebratory accents
+  function heatGradient(x0, x1) {
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    ['#3b6fd4','#2fbf9b','#a3d44a','#f5c93b','#f0803a','#e0452f'].forEach((c,i,arr) => g.addColorStop(i/(arr.length-1), c));
+    return g;
+  }
+
+  // centered text with extra letter-spacing (graffiti font needs air to stay legible)
+  function spacedText(str, x, y, sp, stroked) {
+    str = String(str);
+    const prevAlign = ctx.textAlign;
+    ctx.textAlign = 'left';
+    const widths = [];
+    let total = 0;
+    for (const ch of str) { const w = ctx.measureText(ch).width; widths.push(w); total += w; }
+    total += sp * Math.max(0, str.length - 1);
+    let cx = x - total / 2;
+    for (let i = 0; i < str.length; i++) {
+      if (stroked) ctx.strokeText(str[i], cx, y);
+      ctx.fillText(str[i], cx, y);
+      cx += widths[i] + sp;
+    }
+    ctx.textAlign = prevAlign;
+  }
+
+  function drawUI() {
+    ctx.textAlign = 'center';
+    if (state === STATE.MENU) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `${46*S}px ${GF}`;
+      spacedText('NANO FLIGHT', W/2, H*0.24, 4*S);
+      ctx.font = `${16*S}px ${GF}`;
+      ctx.fillStyle = '#d9d2ee';
+      spacedText('Tap to stay baked. Dodge the Odins.', W/2, H*0.24 + 34*S, 1.6*S);
+      if (best > 0) {
+        ctx.fillStyle = '#b6abd6';
+        ctx.font = `${14*S}px ${GF}`;
+        spacedText(`BEST  ${best}`, W/2, H*0.24 + 58*S, 2*S);
+      }
+      const pulse = 0.6 + 0.4 * Math.sin(t*3.5);
+      ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+      ctx.font = `${20*S}px ${GF}`;
+      spacedText('TAP TO START', W/2, H*0.72, 3*S);
+    }
+    if (state === STATE.PLAY || state === STATE.DEAD) {
+      ctx.font = `${56*S}px ${GF}`;
+      ctx.lineWidth = 5*S;
+      ctx.strokeStyle = 'rgba(20,12,45,0.6)';
+      ctx.fillStyle = newBest ? heatGradient(W/2 - 40*S, W/2 + 40*S) : '#ffffff';
+      spacedText(score, W/2, H*0.13, 3*S, true);
+    }
+    if (state === STATE.DEAD && deadTimer > 0.4) {
+      ctx.fillStyle = 'rgba(250,250,248,0.92)';
+      roundRect(W/2 - 130*S, H*0.32, 260*S, 170*S, 18*S);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1; 
+      roundRect(W/2 - 130*S, H*0.32, 260*S, 170*S, 18*S);
+      ctx.stroke();
+      ctx.fillStyle = '#1c1c1c';
+      ctx.font = `${27*S}px ${GF}`;
+      spacedText('SESSION OVER', W/2, H*0.32 + 42*S, 2.5*S);
+      ctx.font = `${17*S}px ${GF}`;
+      ctx.fillStyle = '#555';
+      spacedText(`SCORE  ${score}`, W/2, H*0.32 + 74*S, 2*S);
+      if (newBest) {
+        ctx.fillStyle = heatGradient(W/2 - 60*S, W/2 + 60*S);
+        ctx.font = `${17*S}px ${GF}`;
+        spacedText('NEW BEST!', W/2, H*0.32 + 98*S, 2*S);
+      } else {
+        ctx.fillStyle = '#888';
+        spacedText(`BEST  ${best}`, W/2, H*0.32 + 98*S, 2*S);
+      }
+      const pulse = 0.55 + 0.45 * Math.sin(t*3.5);
+      ctx.fillStyle = `rgba(28,28,28,${pulse})`;
+      ctx.font = `${17*S}px ${GF}`;
+      spacedText('TAP TO RETRY', W/2, H*0.32 + 138*S, 2.5*S);
+    }
+    if (flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${flash*0.6})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function draw() {
+    drawBG();
+    drawVan();
+    pipes.forEach(p => {
+      const wob = Math.sin(t*1.7 + p.wobble) * 3 * S;
+      drawOdin(p.x, -20*S, p.gapY - p.gapH/2 + wob, p.color, true);
+      drawOdin(p.x, p.gapY + p.gapH/2 + wob, H + 20*S, p.color, false);
+    });
+    drawParticles();
+    drawJoint();
+    drawUI();
+  }
+
+  // ---------- loop ----------
+  function frame(now) {
+    const dt = Math.min(0.033, (now - lastTime) / 1000 || 0.016);
+    lastTime = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
